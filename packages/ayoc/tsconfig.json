@@ -1,0 +1,67 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": [
+    "./src/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    ".modules"
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": [
+      "dom",
+      "dom.iterable",
+      "esnext"
+    ],
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "noFallthroughCasesInSwitch": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "jsxImportSource": "ayoc",
+    "jsxFactory": "createElement",
+    "jsxFragmentFactory": "Fragment",
+    "baseUrl": ".",
+    "paths": {
+      "ayoc": [
+        "./src/ayoc/"
+      ],
+      "ayoc/*": [
+        "./src/ayoc/*"
+      ],
+      "@components/*": [
+        "./src/components/*"
+      ],
+      "@context/*": [
+        "./src/context/*"
+      ],
+      "@views": [
+        "./src/views/"
+      ],
+      "@views/*": [
+        "./src/views/*"
+      ],
+      "@objects": [
+        "./src/objects"
+      ],
+      "@objects/*": [
+        "./src/objects/*"
+      ],
+      "@utils/*": [
+        "./src/utils/*"
+      ],
+      "@public/*": [
+        "./public/*"
+      ]
+    }
+  }
+}

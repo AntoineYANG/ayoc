@@ -1,0 +1,23 @@
+{
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "espoirVersion": 1,
+  "contributors": [
+    "kyusho"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AntoineYANG/ayoc.git"
+  },
+  "bugs": {
+    "url": "https://github.com/AntoineYANG/ayoc/issues"
+  },
+  "homepage": "https://github.com/AntoineYANG/ayoc/README.md",
+  "scripts": {},
+  "devDependencies": {},
+  "peerDependencies": {
+    "espoir-cli": "^1.3.1"
+  }
+}
