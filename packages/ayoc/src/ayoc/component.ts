@@ -5,7 +5,7 @@
  * @Last Modified time: 2022-08-05 01:11:23
  */
 
-import { compareTree, VirtualDOMNode } from './dom';
+import { cacheNodes, generateTree, VirtualDOMNode } from './dom';
 import { JSXElement, RenderElement } from './jsx';
 
 
@@ -13,11 +13,14 @@ type Component<
   P extends Record<string | number | symbol, any> = {}
 > = (props: Readonly<P>) => RenderElement;
 
-/** 无 key 标识的一级子组件列表 */
-type UnmarkedComponentMemoArr = {
-  type: Component<any>;
-  renderer: RenderFunction<any>;
-}[];
+/** 无 key 标识的一级子组件映射（通过源码中的位置匹配） */
+type UnmarkedComponentMemoSet = Map<
+  string,
+  {
+    type: Component<any>;
+    renderer: RenderFunction<any>;
+  }
+>;
 /** 有 key 标识的一级子组件映射 */
 type MarkedComponentMemoSet = Map<
   Exclude<JSXElement['key'], null>,
@@ -29,7 +32,7 @@ type MarkedComponentMemoSet = Map<
 
 /** 所有一级子组件 */
 type ComponentRefSet = {
-  unmarked: UnmarkedComponentMemoArr;
+  unmarked: UnmarkedComponentMemoSet;
   marked: MarkedComponentMemoSet;
 };
 
@@ -48,12 +51,21 @@ export interface ComponentContext {
   children: ComponentContext[];
   __hooks: Hook<any>[];
   __DANGEROUS_COMPONENT_CONTEXT: {
-    /** 当前解析的非具名子组件索引值 */
-    cursor: number;
     /** 是否是第一次渲染 */
     firstRender: boolean;
     /** 当前执行的 hook 索引值 */
     hookIdx: number;
+    /** 待执行的副作用 */
+    effectQueue: {
+      /** 渲染前异步执行 */
+      beforeRender: (() => void)[];
+      /** 渲染完成后异步执行 */
+      onRender: (() => void)[];
+      /** 渲染完成后同步执行 */
+      whenRender: (() => void)[];
+      /** 卸载前同步执行 */
+      willUnmount: (() => void)[];
+    };
   };
   __DANGEROUS_UPDATE: () => void;
 }
@@ -73,21 +85,23 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   owner: ComponentContext,
   component: Component<P>,
   key: string | number | null,
+  where: string | null,
 ): RenderFunction<P> => {
-  if (key !== null && owner.componentRefs.marked.has(key)) {
-    const which = owner.componentRefs.marked.get(key)!;
-
-    if (which.type === component) {
-      return which.renderer;
+  if (key !== null) {
+    if (owner.componentRefs.marked.has(key)) {
+      const which = owner.componentRefs.marked.get(key)!;
+  
+      if (which.type === component) {
+        return which.renderer;
+      }
     }
   } else {
-    const index = owner.__DANGEROUS_COMPONENT_CONTEXT.cursor;
-    const which = owner.componentRefs.unmarked[index];
-
-    if (which?.type === component) {
-      owner.__DANGEROUS_COMPONENT_CONTEXT.cursor += 1;
-
-      return which.renderer;
+    if (where !== null && owner.componentRefs.unmarked.has(where)) {
+      const which = owner.componentRefs.unmarked.get(where)!;
+  
+      if (which?.type === component) {
+        return which.renderer;
+      }
     }
   }
 
@@ -95,7 +109,10 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
     fireUpdate: owner.fireUpdate,
     parent: owner,
     componentRefs: {
-      unmarked: [],
+      unmarked: new Map<string, {
+        type: Component<any>;
+        renderer: ReturnType<typeof useComponentNode>;
+      }>(),
       marked: new Map<Exclude<JSXElement['key'], null>, {
         type: Component<any>;
         renderer: ReturnType<typeof useComponentNode>;
@@ -104,9 +121,14 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
     children: [],
     __hooks: [],
     __DANGEROUS_COMPONENT_CONTEXT: {
-      cursor: 0,
       firstRender: true,
       hookIdx: 0,
+      effectQueue: {
+        beforeRender: [],
+        onRender: [],
+        whenRender: [],
+        willUnmount: [],
+      },
     },
     __DANGEROUS_UPDATE: () => {},
   };
@@ -116,41 +138,74 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   let $$props: Readonly<P>;
   
   const $$render = (): RenderElement => {
+    if (context.__DANGEROUS_COMPONENT_CONTEXT.firstRender) {
+      context.__DANGEROUS_COMPONENT_CONTEXT = {
+        firstRender: true,
+        hookIdx: 0,
+        effectQueue: {
+          beforeRender: [],
+          onRender: [],
+          whenRender: [],
+          willUnmount: [],
+        },
+      };
+    }
+
     context.__DANGEROUS_COMPONENT_CONTEXT.hookIdx = 0;
     __DANGEROUS_CUR_COMPONENT_REF.current = context;
     const jsx = component($$props);
     __DANGEROUS_CUR_COMPONENT_REF.current = null;
     context.__DANGEROUS_COMPONENT_CONTEXT.firstRender = false;
-    console.log(context.__DANGEROUS_COMPONENT_CONTEXT, context.__hooks)
+    // console.log(context.__DANGEROUS_COMPONENT_CONTEXT, context.__hooks);
 
     return jsx;
   };
 
   /** 上次渲染结果 */
-  let prevRenderTree: RenderElement = null;
   let prevRenderDom: VirtualDOMNode[] = [];
+  const renderCache: Map<string, VirtualDOMNode> = new Map<string, VirtualDOMNode>();
 
   /** 完成 DOM 更新 */
   const $$apply = (element: RenderElement): void => {
-    console.log('render', $$slot, element);
-    context.__DANGEROUS_COMPONENT_CONTEXT.cursor = 0;
+    // console.log('render', $$slot, element);
+
+    // 清除异步副作用
+    const effectClearFuncs = context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.beforeRender.splice(
+      0, context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.beforeRender.length
+    );
+    effectClearFuncs.forEach(cb => context.fireUpdate(cb));
 
     // FIXME:
     prevRenderDom.forEach(e => e.ref.remove());
         
-    const dom = compareTree(context, $$slot, prevRenderTree, element);
+    const dom = generateTree(context, $$slot, element, renderCache);
+
+    renderCache.clear();
 
     dom.forEach(e => {
       $$slot.appendChild(e.ref);
     });
 
-    prevRenderTree = element;
+    cacheNodes(dom, renderCache);
+
     prevRenderDom = dom;
+
+    // 同步副作用
+    const layoutEffects = context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.whenRender.splice(
+      0, context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.whenRender.length
+    );
+    layoutEffects.forEach(cb => cb());
+    
+    // 异步副作用
+    const renderEffects = context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.onRender.splice(
+      0, context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.onRender.length
+    );
+    renderEffects.forEach(cb => context.fireUpdate(cb));
   };
 
   /** 由自身触发更新 */
   const $$renderAsRoot = (): void => {
-    console.log('update', context.__hooks);
+    // console.log('update', context.__hooks);
     const element = $$render();
 
     owner.fireUpdate(() => {
@@ -162,7 +217,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   const sendProps = (parent: Element, props: Readonly<P>): void => {
     $$slot = parent;
     $$props = props;
-    console.log(`send props`, props);
+    // console.log(`send props`, props);
     const element = $$render();
 
     owner.fireUpdate(() => {
@@ -176,79 +231,17 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
       type: component,
       renderer: sendProps,
     });
-  } else {
-    owner.componentRefs.unmarked = [
-      ...owner.componentRefs.unmarked.slice(0, owner.__DANGEROUS_COMPONENT_CONTEXT.cursor),
-      {
-        type: component,
-        renderer: sendProps,
-      },
-      ...owner.componentRefs.unmarked.slice(owner.__DANGEROUS_COMPONENT_CONTEXT.cursor ++),
-    ];
+  } else if (where) {
+    owner.componentRefs.unmarked.set(where, {
+      type: component,
+      renderer: sendProps,
+    });
   }
 
   context.__DANGEROUS_UPDATE = $$renderAsRoot;
 
   return sendProps;
 };
-
-// /**
-//  * 具有渲染能力的组件维护实例.
-//  */
-// export class AliveElement<P extends Record<string | number | symbol, any> = {}> {
-
-//   protected readonly component: Component<P>;
-
-//   protected readonly keyMap: Map<string, Element>;
-
-//   protected readonly childrenCache: Map<string, [Component, AliveElement]>;
-
-//   protected readonly hookArr: HookData[];
-
-//   constructor(component: Component<P>) {
-//     this.component = component;
-//     this.keyMap = new Map<string, Element>();
-//     this.childrenCache = new Map<string, [Component, AliveElement]>();
-//     this.hookArr = [];
-//   }
-
-//   private resolveComponent(parent: Element, jsx: JSXElement[], path: string): JSXElement[] {
-//     return jsx.map<JSXElement>((d, i) => {
-//       const id = `${path}/${d.key ?? i}`;
-//       const which = this.childrenCache.get(id);
-
-//       let res = d;
-
-//       if (typeof d.type === 'function') {
-//         if (which && which[0] === d.type) {
-//           const component = which[1];
-  
-//           component.render(parent, d.props);
-//         } else {
-//           const component = new AliveElement(d.type);
-  
-//           component.render(parent, d.props);
-
-//           this.childrenCache.set(id, [d.type, component]);
-//         }
-//       } else if (res.props.children.length > 0) {
-//         res.props.children = this.resolveComponent(parent, res.props.children, id);
-//       }
-
-//       return res;
-//     });
-//   }
-
-//   render(parent: Element, props: Readonly<P>): void {
-//     curNode = this;
-//     const jsx = this.component(props);
-//     curNode = null;
-
-//     applyJSX(parent, jsx, this.keyMap);
-//     this.resolveComponent(parent, [jsx], '');
-//   }
-
-// }
 
 
 export default Component;

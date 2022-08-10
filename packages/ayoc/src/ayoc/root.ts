@@ -63,7 +63,10 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       fireUpdate,
       parent: null,
       componentRefs: {
-        unmarked: [],
+        unmarked: new Map<string, {
+          type: Component<any>;
+          renderer: ReturnType<typeof useComponentNode>;
+        }>(),
         marked: new Map<Exclude<JSXElement['key'], null>, {
           type: Component<any>;
           renderer: ReturnType<typeof useComponentNode>;
@@ -72,9 +75,14 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       children: [],
       __hooks: [],
       __DANGEROUS_COMPONENT_CONTEXT: {
-        cursor: 0,
         firstRender: true,
         hookIdx: 0,
+        effectQueue: {
+          beforeRender: [],
+          onRender: [],
+          whenRender: [],
+          willUnmount: [],
+        },
       },
       __DANGEROUS_UPDATE: () => {},
     };
@@ -83,11 +91,10 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       context,
       function AyocRoot () { return element },
       null,
+      null,
     );
 
     root(rootElement, {});
-
-    context.__DANGEROUS_COMPONENT_CONTEXT.cursor = 0;
   };
 
   return render;

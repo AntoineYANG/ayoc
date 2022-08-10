@@ -6,7 +6,6 @@
  */
 
 import type Component from './component';
-import isValidElementType from './utils/is-valid-element-type';
 
 
 const flag: unique symbol = Symbol('JSXElement');
@@ -22,6 +21,7 @@ export interface JSXElement {
   // private
   
   flag?: typeof flag;
+  where?: string;
 }
 
 export const isJSXElement = (obj: any): boolean => {
@@ -49,6 +49,11 @@ export const createTextNode = (data: unknown): JSXElement => {
   };
 };
 
+const __DANGEROUSLY_GET_CUR_JSX_POSITION = (): string => {
+  const position = new Error().stack!.split(/\n\s*/)[3]!.replace(/^at /, '');
+  return position;
+};
+
 /**
  * Create element.
  */
@@ -70,6 +75,7 @@ const jsxProd = (
     },
     flag,
     key: props['key'] ?? null,
+    where: __DANGEROUSLY_GET_CUR_JSX_POSITION(),
   };
 };
 
@@ -96,6 +102,7 @@ const jsxDev = (
     },
     flag,
     key: props['key'] ?? null,
+    where: __DANGEROUSLY_GET_CUR_JSX_POSITION(),
   };
 };
 
