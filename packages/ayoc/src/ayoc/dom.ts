@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-04 20:40:10 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-05 01:09:08
+ * @Last Modified time: 2022-08-11 23:58:21
  */
 
 import { ComponentContext, useComponentNode } from './component';
@@ -31,8 +31,16 @@ const resolveVirtualDOM = (
 
   if (typeof jsx.type === 'function') {
     // 组件
+    const { lifetime = 'inherit' } = jsx.props;
+
+    const ownerRenderCache = lifetime === 'inherit' ? context.renderCache
+      : lifetime === 'dynamic' ? null
+        : lifetime === 'static' ? context.root.renderCache
+         : lifetime.renderCache;
 
     const render = useComponentNode(
+      context.root,
+      ownerRenderCache,
       context,
       jsx.type,
       jsx.key ?? null,
@@ -44,7 +52,7 @@ const resolveVirtualDOM = (
     // HTML 元素
 
     const tagName = jsx.type;
-    const { style = {}, children, key: _, ...props } = jsx.props;
+    const { style = {}, children, key: _, ref, ...props } = jsx.props;
 
     const useCached = Boolean(cached && cached.type === tagName);
     
@@ -66,6 +74,10 @@ const resolveVirtualDOM = (
     res.push(element);
 
     const dom = element.ref;
+    
+    if (ref) {
+      (ref as (element: Element) => void)(dom);
+    }
 
     for (const key in (useCached ? cached!.props : {})) {
       if (Object.prototype.hasOwnProperty.call(cached!.props, key) && !Object.prototype.hasOwnProperty.call(props, key)) {

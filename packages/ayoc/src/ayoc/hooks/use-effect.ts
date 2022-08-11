@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 21:58:46 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-10 22:10:08
+ * @Last Modified time: 2022-08-12 00:26:54
  */
 
 import hook from '.';
@@ -35,7 +35,7 @@ const useEffect = (effect: () => (void | (() => void)), deps?: any[]): void => {
             });
           };
 
-          if (Array.isArray(deps) && deps.length === 0) {
+          if (deps !== undefined) {
             pushEffect(effect);
           }
 
@@ -45,10 +45,14 @@ const useEffect = (effect: () => (void | (() => void)), deps?: any[]): void => {
     }
   ).context;
 
-  if (depsRef.current === undefined || deps === undefined || diffDeps(depsRef.current, deps)) {
+  if (
+    deps === undefined ||
+    (depsRef.current !== undefined && deps !== undefined && diffDeps(depsRef.current, deps))
+  ) {
     apply(effect);
-    depsRef.current = deps;
   }
+  
+  depsRef.current = deps;
   
   return;
 };

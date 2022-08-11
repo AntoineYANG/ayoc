@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 16:34:01 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-05 00:24:48
+ * @Last Modified time: 2022-08-11 22:56:51
  */
 
 import Component, {
@@ -60,23 +60,20 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
   
   const render: RootRenderFunction = element => {
     const context: ComponentContext = {
+      root: undefined as unknown as ComponentContext,
       fireUpdate,
       parent: null,
-      componentRefs: {
-        unmarked: new Map<string, {
-          type: Component<any>;
-          renderer: ReturnType<typeof useComponentNode>;
-        }>(),
-        marked: new Map<Exclude<JSXElement['key'], null>, {
-          type: Component<any>;
-          renderer: ReturnType<typeof useComponentNode>;
-        }>()
-      },
+      renderCache: new Map<string, {
+        type: Component<any>;
+        renderer: ReturnType<typeof useComponentNode>;
+      }>(),
       children: [],
       __hooks: [],
       __DANGEROUS_COMPONENT_CONTEXT: {
+        props: undefined as unknown as Readonly<Record<string | number | symbol, any>>,
         firstRender: true,
         hookIdx: 0,
+        skipRender: false,
         effectQueue: {
           beforeRender: [],
           onRender: [],
@@ -86,8 +83,12 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       },
       __DANGEROUS_UPDATE: () => {},
     };
+
+    context.root = context;
     
     const root = useComponentNode(
+      context,
+      context.renderCache,
       context,
       function AyocRoot () { return element },
       null,

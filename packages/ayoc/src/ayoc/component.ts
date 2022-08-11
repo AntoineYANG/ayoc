@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 19:10:29 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-05 01:11:23
+ * @Last Modified time: 2022-08-11 23:49:19
  */
 
 import { cacheNodes, generateTree, VirtualDOMNode } from './dom';
@@ -13,28 +13,14 @@ type Component<
   P extends Record<string | number | symbol, any> = {}
 > = (props: Readonly<P>) => RenderElement;
 
-/** 无 key 标识的一级子组件映射（通过源码中的位置匹配） */
-type UnmarkedComponentMemoSet = Map<
+/** 子组件缓存映射（通过源码中的位置与 key 匹配） */
+export type ComponentMemoSet = Map<
   string,
   {
     type: Component<any>;
     renderer: RenderFunction<any>;
   }
 >;
-/** 有 key 标识的一级子组件映射 */
-type MarkedComponentMemoSet = Map<
-  Exclude<JSXElement['key'], null>,
-  {
-    type: Component<any>;
-    renderer: RenderFunction<any>;
-  }
->;
-
-/** 所有一级子组件 */
-type ComponentRefSet = {
-  unmarked: UnmarkedComponentMemoSet;
-  marked: MarkedComponentMemoSet;
-};
 
 export type Hook<C> = {
   context: C;
@@ -44,17 +30,22 @@ export type Hook<C> = {
  * 每个组件的上下文.
  */
 export interface ComponentContext {
+  root: Readonly<ComponentContext>;
   fireUpdate: (cb: () => void) => void;
-  parent: ComponentContext | null;
+  parent: Readonly<ComponentContext> | null;
   /** 子组件集合 */
-  componentRefs: ComponentRefSet;
+  renderCache: ComponentMemoSet;
   children: ComponentContext[];
-  __hooks: Hook<any>[];
+  __hooks: Hook<any[]>[];
   __DANGEROUS_COMPONENT_CONTEXT: {
+    /** 当前 props */
+    props: Readonly<Record<string | number | symbol, any>>;
     /** 是否是第一次渲染 */
     firstRender: boolean;
     /** 当前执行的 hook 索引值 */
     hookIdx: number;
+    /** 是否跳过本次渲染（在 props 更新时可作用） */
+    skipRender: boolean;
     /** 待执行的副作用 */
     effectQueue: {
       /** 渲染前异步执行 */
@@ -82,46 +73,41 @@ export const __DANGEROUS_CUR_COMPONENT_REF: {
 };
 
 export const useComponentNode = <P extends Record<string | number | symbol, any>>(
-  owner: ComponentContext,
+  root: Readonly<ComponentContext>,
+  ownerRenderCache: ComponentMemoSet | null,
+  parent: Readonly<ComponentContext>,
   component: Component<P>,
   key: string | number | null,
   where: string | null,
 ): RenderFunction<P> => {
-  if (key !== null) {
-    if (owner.componentRefs.marked.has(key)) {
-      const which = owner.componentRefs.marked.get(key)!;
-  
+  const id = where === null ? null : `${where};${
+    key === null ? '' : `key ${typeof key === 'number' ? '=' : 'is'} ${key}`
+  }`;
+
+  if (id !== null) {
+    if (ownerRenderCache?.has(id)) {
+      const which = ownerRenderCache.get(id)!;
+
       if (which.type === component) {
-        return which.renderer;
-      }
-    }
-  } else {
-    if (where !== null && owner.componentRefs.unmarked.has(where)) {
-      const which = owner.componentRefs.unmarked.get(where)!;
-  
-      if (which?.type === component) {
         return which.renderer;
       }
     }
   }
 
   const context: ComponentContext = {
-    fireUpdate: owner.fireUpdate,
-    parent: owner,
-    componentRefs: {
-      unmarked: new Map<string, {
-        type: Component<any>;
-        renderer: ReturnType<typeof useComponentNode>;
-      }>(),
-      marked: new Map<Exclude<JSXElement['key'], null>, {
-        type: Component<any>;
-        renderer: ReturnType<typeof useComponentNode>;
-      }>(),
-    },
+    root,
+    fireUpdate: root.fireUpdate,
+    parent,
+    renderCache: new Map<string, {
+      type: Component<any>;
+      renderer: ReturnType<typeof useComponentNode>;
+    }>(),
     children: [],
     __hooks: [],
     __DANGEROUS_COMPONENT_CONTEXT: {
+      props: undefined as unknown as Readonly<Record<string | number | symbol, any>>,
       firstRender: true,
+      skipRender: false,
       hookIdx: 0,
       effectQueue: {
         beforeRender: [],
@@ -134,13 +120,13 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   };
 
   let $$slot: Element;
-
-  let $$props: Readonly<P>;
   
   const $$render = (): RenderElement => {
     if (context.__DANGEROUS_COMPONENT_CONTEXT.firstRender) {
       context.__DANGEROUS_COMPONENT_CONTEXT = {
+        props: context.__DANGEROUS_COMPONENT_CONTEXT.props,
         firstRender: true,
+        skipRender: false,
         hookIdx: 0,
         effectQueue: {
           beforeRender: [],
@@ -153,7 +139,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
 
     context.__DANGEROUS_COMPONENT_CONTEXT.hookIdx = 0;
     __DANGEROUS_CUR_COMPONENT_REF.current = context;
-    const jsx = component($$props);
+    const jsx = component(context.__DANGEROUS_COMPONENT_CONTEXT.props);
     __DANGEROUS_CUR_COMPONENT_REF.current = null;
     context.__DANGEROUS_COMPONENT_CONTEXT.firstRender = false;
     // console.log(context.__DANGEROUS_COMPONENT_CONTEXT, context.__hooks);
@@ -206,9 +192,10 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   /** 由自身触发更新 */
   const $$renderAsRoot = (): void => {
     // console.log('update', context.__hooks);
+    context.__DANGEROUS_COMPONENT_CONTEXT.skipRender = false;
     const element = $$render();
 
-    owner.fireUpdate(() => {
+    context.fireUpdate(() => {
       $$apply(element);
     });
   };
@@ -216,23 +203,27 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   /** 由上层组件传递 props 触发更新 */
   const sendProps = (parent: Element, props: Readonly<P>): void => {
     $$slot = parent;
-    $$props = props;
+    context.__DANGEROUS_COMPONENT_CONTEXT.props = props;
+    
     // console.log(`send props`, props);
     const element = $$render();
 
-    owner.fireUpdate(() => {
+    if (!context.__DANGEROUS_COMPONENT_CONTEXT.firstRender && context.__DANGEROUS_COMPONENT_CONTEXT.skipRender) {
+      context.__DANGEROUS_COMPONENT_CONTEXT.skipRender = false;
+
+      // 跳过本次渲染
+      
+      return;
+    }
+
+    context.fireUpdate(() => {
       $$apply(element);
     });
   };
 
-  // 缓存子组件到父组件上下文
-  if (key !== null) {
-    owner.componentRefs.marked.set(key, {
-      type: component,
-      renderer: sendProps,
-    });
-  } else if (where) {
-    owner.componentRefs.unmarked.set(where, {
+  // 缓存子组件到对应的上下文
+  if (id !== null && ownerRenderCache) {
+    ownerRenderCache.set(id, {
       type: component,
       renderer: sendProps,
     });
