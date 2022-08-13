@@ -18,10 +18,10 @@ import diffDeps from './utils/diff-deps';
  * @return {F} 被缓存的函数
  */
 const useCallback = <F extends (...args: any) => any>(factory: () => F, deps: any[]): F => {
-  const funcRef = useRef(factory());
+  const funcRef = useRef<F | undefined>(undefined);
   const depsRef = useRef(deps);
 
-  if (diffDeps(depsRef.current, deps)) {
+  if (funcRef.current === undefined || diffDeps(depsRef.current, deps)) {
     funcRef.current = factory();
     depsRef.current = deps;
   }

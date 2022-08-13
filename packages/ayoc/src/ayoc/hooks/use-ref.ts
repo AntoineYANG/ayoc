@@ -20,11 +20,11 @@ export type RefObject<S> = {
  * @return {RefObject<S>}
  */
 const useRef = <S = any>(initValue: S): RefObject<S> => {
-  return hook<RefObject<S>>(
-    (self, getContext) => ({
+  return hook<[RefObject<S>]>(
+    (self, getContext) => [{
       current: initValue
-    })
-  ).context;
+    }]
+  ).context[0];
 };
 
 

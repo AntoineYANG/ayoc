@@ -12,6 +12,7 @@ import {
   useLayoutEffect,
   useLifetimeFlag,
   LifetimeFlag,
+  useLifetimeEffect,
 } from 'ayoc';
 
 
@@ -24,10 +25,16 @@ if (!container) {
 const root = useRenderRoot(container);
 
 const Empty: Component<{ name: string }> = ({ name }) => {
+  useLifetimeEffect(() => {
+    console.log(`${name} 组件被创建`);
+
+    return () => console.log(`${name} 组件被销毁`);
+  }, [name]);
+
   useEffect(() => {
     console.log(`${name} 组件被挂载`);
 
-    // return () => console.log(`${name} 组件被卸载`);
+    return () => console.log(`${name} 组件被卸载`);
   }, [name]);
 
   return null;
@@ -62,25 +69,27 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
 
   useEffect(() => {
     console.log('父组件更新了');
+
+    return () => console.log('父组件将更新');
   });
+  
+  useLifetimeEffect(() => {
+    console.log('App: 创建');
 
-  // useEffect(() => {
-  //   console.log('挂载了');
+    return () => {
+      console.log('App: 销毁');
+    };
+  }, []);
 
-  //   return () => console.log('即将卸载');
-  // }, []);
-
-  // useEffect(() => {
-  //   console.log('sum 改变了');
-  // }, [sum]);
+  useEffect(() => {
+    console.log('val1 改变了');
+  }, [val]);
 
   const resetBtnRef = useRef<HTMLButtonElement | null>(null);
 
-  // useLayoutEffect(() => {
-  //   console.log('layout effect', resetBtnRef);
-  // });
-
-  const appLifetimeFlag = useLifetimeFlag();
+  useLayoutEffect(() => {
+    console.log('父组件更新（layout effect）', resetBtnRef);
+  });
 
   return (
     <div>
@@ -93,7 +102,6 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
       <Empty name="inherit" />
       <Empty name="dynamic" lifetime="dynamic" />
       <Empty name="static" lifetime="static" />
-      <Empty name="lifetime=local" lifetime={appLifetimeFlag} />
       <Empty name="lifetime=parent" lifetime={parentLifetime} />
       <>
         <p>
@@ -140,12 +148,6 @@ const Wrapper: Component = () => {
 
   return (
     <div>
-      {
-        show && (
-          // FIXME: 这里有个问题，不用 dynamic 的话 App 一旦关闭就无法再次显示，应该是读取 renderCache 逻辑有误
-          <App d={3456789} parentLifetime={lifetimeFlag} lifetime="dynamic" />
-        )
-      }
       <button
         onClick={toggle}
       >
@@ -154,6 +156,11 @@ const Wrapper: Component = () => {
       <p>
         {`render <App /> : ${show}`}
       </p>
+      {
+        show && (
+          <App d={3456789} parentLifetime={lifetimeFlag} />
+        )
+      }
     </div>
   );
 };

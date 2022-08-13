@@ -1,8 +1,8 @@
 /*
  * @Author: Kanata You 
  * @Date: 2022-01-24 15:46:57 
- * @Last Modified by: Kanata You
- * @Last Modified time: 2022-01-26 02:25:25
+ * @Last Modified by: Kyusho
+ * @Last Modified time: 2022-08-13 23:45:46
  */
 'use strict';
 
@@ -29,7 +29,6 @@ const formatTime = require('./utils/format-time');
 const { name: appName } = require('../package.json');
 const paths = require('../configs/path.json');
 
-const dir = env.resolvePathInPackage(appName, paths.rootDir);
 const outputPath = env.resolvePathInPackage(appName, paths.rootDir, paths.output);
 
 const prepareOutputDir = async () => {
@@ -37,10 +36,6 @@ const prepareOutputDir = async () => {
   
   // clear output directory
   fs.emptyDirSync(outputPath);
-
-  // merge public dir
-  const publicPath = path.resolve(dir, paths.publicPath);
-  copyPublicDir(publicPath, path.join(outputPath, paths.referencePath), path.join(dir, paths.template));
 
   return prevStats;
 };

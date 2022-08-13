@@ -9,7 +9,7 @@ import Component, {
   ComponentContext,
   useComponentNode,
 } from './component';
-import { JSXElement } from './jsx';
+import type { JSXElement } from './jsx';
 
 
 type RootRenderFunction = (element: JSXElement) => void;
@@ -66,19 +66,22 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       renderCache: new Map<string, {
         type: Component<any>;
         renderer: ReturnType<typeof useComponentNode>;
+        emitUnmount: () => void;
+        emitDestroy: () => void;
       }>(),
       children: [],
       __hooks: [],
       __DANGEROUS_COMPONENT_CONTEXT: {
         props: undefined as unknown as Readonly<Record<string | number | symbol, any>>,
+        visible: false,
         firstRender: true,
         hookIdx: 0,
         skipRender: false,
         effectQueue: {
-          beforeRender: [],
           onRender: [],
           whenRender: [],
           willUnmount: [],
+          willDestroy: [],
         },
       },
       __DANGEROUS_UPDATE: () => {},
@@ -89,6 +92,12 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
     const root = useComponentNode(
       context,
       context.renderCache,
+      new Map<string, {
+        type: Component<any>;
+        renderer: ReturnType<typeof useComponentNode>;
+        emitUnmount: () => void;
+        emitDestroy: () => void;
+      }>(),
       context,
       function AyocRoot () { return element },
       null,
@@ -96,6 +105,8 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
     );
 
     root(rootElement, {});
+
+    context.__DANGEROUS_COMPONENT_CONTEXT.visible = true;
   };
 
   return render;

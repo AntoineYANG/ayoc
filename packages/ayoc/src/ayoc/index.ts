@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 16:31:44 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-12 00:16:24
+ * @Last Modified time: 2022-08-13 23:23:45
  */
 
 import { useRenderRoot } from './root';
@@ -17,6 +17,8 @@ import useEffect from './hooks/use-effect';
 import useLayoutEffect from './hooks/use-layout-effect';
 import useLifetimeFlag from './hooks/use-lifetime-flag';
 import type { LifetimeAnnotation, LifetimeFlag } from './lifetime';
+import useLifetimeEffect from './hooks/use-lifetime-effect';
+import useId from './hooks/use-id';
 
 
 // 定义转译 JSX 的方法
@@ -37,4 +39,6 @@ export {
   useLifetimeFlag,
   LifetimeAnnotation,
   LifetimeFlag,
+  useLifetimeEffect,
+  useId,
 };

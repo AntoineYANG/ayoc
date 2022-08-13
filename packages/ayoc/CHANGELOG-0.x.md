@@ -1,6 +1,6 @@
 # ayoc v0.x
 
-## 0.0.1 (2022/8/10 - 2022/8/12)
+## 0.0.1 (2022/8/10 - 2022/8/13)
 
 _\<version description\>_
 
@@ -23,5 +23,10 @@ _\<version description\>_
 ### render
 
 + 🌱 **Use lifetime.** - kyusho(antoineyang99@gmail.com) 2022/8/12, on _main_
+
+
+### lifetime
+
++ 🌱 **Support lifetime feature.** - kyusho(antoineyang99@gmail.com) 2022/8/13, on _main_
 
 

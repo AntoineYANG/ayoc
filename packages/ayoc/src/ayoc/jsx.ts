@@ -29,6 +29,17 @@ export interface JSXElement {
 declare global {
   namespace JSX {
     interface IntrinsicAttributes {
+      /**
+       * 生命周期注解，用于标注子组件的生命周期.
+       * 
+       * 有效值：
+       * + `"inherit"` - 子组件在父组件的生命周期内表现为不变的实例
+       * + `"dynamic"` - 子组件随着父组件的每次渲染更新为不同的实例
+       * + `"static"` - 子组件在整个渲染入口的生命周期内表现为不变的实例
+       * + LifetimeFlag - 子组件在所标记的这个值的生命周期内表现为不变的实例
+       * 
+       * @default "inherit"
+       */
       lifetime?: LifetimeAnnotation;
     }
   }
@@ -61,6 +72,7 @@ export const createTextNode = (data: unknown): JSXElement => {
 
 const __DANGEROUSLY_GET_CUR_JSX_POSITION = (): string => {
   const position = new Error().stack!.split(/\n\s*/)[3]!.replace(/^at /, '');
+  
   return position;
 };
 

@@ -5,7 +5,7 @@
  * @Last Modified time: 2022-08-11 23:58:21
  */
 
-import { ComponentContext, useComponentNode } from './component';
+import { ComponentContext, ComponentMemoSet, useComponentNode } from './component';
 import { Fragment, JSXElement, RenderElement, TextElement } from './jsx';
 
 
@@ -23,6 +23,9 @@ const resolveVirtualDOM = (
   parent: Element,
   jsx: JSXElement,
   cache: Readonly<Map<string, VirtualDOMNode>>,
+  parentRenderCache: ComponentMemoSet,
+  dynamicComponentCache: ComponentMemoSet,
+  emitComponentVisible: (componentId: string) => void,
 ): VirtualDOMNode[] => {
   const where = jsx.where;
   const cached = where ? (cache.get(where) ?? null) : null;
@@ -33,14 +36,26 @@ const resolveVirtualDOM = (
     // 组件
     const { lifetime = 'inherit' } = jsx.props;
 
-    const ownerRenderCache = lifetime === 'inherit' ? context.renderCache
-      : lifetime === 'dynamic' ? null
-        : lifetime === 'static' ? context.root.renderCache
-         : lifetime.renderCache;
+    const ownerRenderCache = (
+      lifetime === 'inherit' ? context.renderCache
+        : lifetime === 'dynamic' ? dynamicComponentCache
+          : lifetime === 'static' ? context.root.renderCache
+            : lifetime.renderCache
+    );
 
+    // console.log('ownerRenderCache', ownerRenderCache);
+    if (where !== undefined) {
+      const id = `<${jsx.type.name}/> at ${where};${
+        jsx.key === null ? '' : `key ${typeof jsx.key === 'number' ? '=' : 'is'} ${jsx.key}`
+      }`;
+
+      emitComponentVisible(id);
+    }
+    
     const render = useComponentNode(
       context.root,
       ownerRenderCache,
+      parentRenderCache,
       context,
       jsx.type,
       jsx.key ?? null,
@@ -120,7 +135,15 @@ const resolveVirtualDOM = (
     element.ref = dom;
 
     children.forEach(child => {
-      const node = resolveVirtualDOM(context, dom, child, cache);
+      const node = resolveVirtualDOM(
+        context,
+        dom,
+        child,
+        cache,
+        parentRenderCache,
+        dynamicComponentCache,
+        emitComponentVisible
+      );
 
       node.forEach(e => {
         dom.appendChild(e.ref);
@@ -152,7 +175,15 @@ const resolveVirtualDOM = (
 
     jsx.props.children.forEach(child => {
       res.push(
-        ...resolveVirtualDOM(context, parent, child, cache),
+        ...resolveVirtualDOM(
+          context,
+          parent,
+          child,
+          cache,
+          parentRenderCache,
+          dynamicComponentCache,
+          emitComponentVisible
+        ),
       );
     });
   }
@@ -165,11 +196,24 @@ export const generateTree = (
   parent: Element,
   next: RenderElement,
   cache: Readonly<Map<string, VirtualDOMNode>>,
+  parentRenderCache: ComponentMemoSet,
+  dynamicComponentCache: ComponentMemoSet,
+  emitComponentVisible: (componentId: string) => void,
 ): VirtualDOMNode[] => {
   const res: VirtualDOMNode[] = [];
 
   if (next) {
-    res.push(...resolveVirtualDOM(context, parent, next, cache));
+    res.push(
+      ...resolveVirtualDOM(
+        context,
+        parent,
+        next,
+        cache,
+        parentRenderCache,
+        dynamicComponentCache,
+        emitComponentVisible
+      )
+    );
   }
 
   return res;

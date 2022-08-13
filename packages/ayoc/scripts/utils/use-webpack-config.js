@@ -2,7 +2,7 @@
  * @Author: Kanata You 
  * @Date: 2022-01-24 16:09:18 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-04 19:14:13
+ * @Last Modified time: 2022-08-13 23:50:54
  */
 'use strict';
 
@@ -23,6 +23,7 @@ const paths = require('../../configs/path.json');
 
 const dir = env.resolvePathInPackage(appName, paths.rootDir);
 const entry = env.resolvePathInPackage(appName, paths.rootDir, paths.src, paths.entry);
+const buildEntry = env.resolvePathInPackage(appName, paths.rootDir, paths.src, paths.main);
 const outputPath = env.resolvePathInPackage(appName, paths.rootDir, paths.output);
 
 const enableTS = fs.existsSync(
@@ -75,7 +76,6 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const InterpolateHtmlPlugin = require('react-dev-utils/InterpolateHtmlPlugin');
 const { DefinePlugin } = require('webpack');
 const CaseSensitivePathsPlugin = require('case-sensitive-paths-webpack-plugin');
-const MiniCssExtractPlugin = require('mini-css-extract-plugin');
 const ESLintPlugin = require('eslint-webpack-plugin');
 const { WebpackManifestPlugin: ManifestPlugin } = require('webpack-manifest-plugin');
 
@@ -93,8 +93,6 @@ const useWebpackConfig = mode => {
 
   const isDev = mode === 'development';
   const isProd = mode === 'production';
-
-  const enableSourceMap = true;
   
   return {
     // 'development' | 'production'
@@ -103,7 +101,7 @@ const useWebpackConfig = mode => {
     bail: isProd,
     // devtool
     devtool: {
-      production: enableSourceMap ? 'source-map' : false,
+      production: 'source-map',
       development: 'cheap-module-source-map'
     }[mode] ?? false,
     // dev server
@@ -111,7 +109,7 @@ const useWebpackConfig = mode => {
       proxy: useProxyConfig()
     } : undefined,
     // app entry
-    entry,
+    entry: isProd ? buildEntry : entry,
     // output
     output: {
       // output directory (absolute path)
@@ -119,13 +117,13 @@ const useWebpackConfig = mode => {
       // module information
       pathinfo: isDev,
       // output bundle (relative path)
-      filename: `static/js/${
-        isProd ? '[name].[contenthash:8]' : 'bundle'
-      }.js`,
+      filename: isDev ? `static/js/bundle.js` : 'index.js',
       // output chunk (relative path)
-      chunkFilename: `static/js/[name]${
-        isProd ? '.[contenthash:8]' : ''
-      }.chunk.js`,
+      chunkFilename: isDev ? `static/js/[name].chunk.js` : undefined,
+      library: {
+        name: 'ayoc',
+        type: 'commonjs',
+      },
       // Filename template string of function for the sources array in a generated SourceMap
       devtoolModuleFilenameTemplate: {
         production: info => path.relative(
@@ -257,14 +255,12 @@ const useWebpackConfig = mode => {
               use:     useStyleLoaders(
                 isDev, {
                 importLoaders: 1,
-                sourceMap:     isProd
-                  ? enableSourceMap
-                  : isDev,
+                sourceMap:     true,
                 },
                 undefined,
                 dir,
                 paths,
-                enableSourceMap
+                true
               ),
               // Don't consider CSS imports dead code even if the
               // containing package claims to have no side effects.
@@ -297,7 +293,7 @@ const useWebpackConfig = mode => {
     // plugins
     plugins: [
       // Generates an `index.html` file with the <script> injected.
-      new HtmlWebpackPlugin(
+      isDev && new HtmlWebpackPlugin(
         Object.assign(
           {},
           {
@@ -306,24 +302,10 @@ const useWebpackConfig = mode => {
               appName, paths.rootDir, paths.template
             ),
           },
-          isProd ? {
-            minify: {
-              removeComments:                true,
-              collapseWhitespace:            true,
-              removeRedundantAttributes:     true,
-              useShortDoctype:               true,
-              removeEmptyAttributes:         true,
-              removeStyleLinkTypeAttributes: true,
-              keepClosingSlash:              true,
-              minifyJS:                      true,
-              minifyCSS:                     true,
-              minifyURLs:                    true,
-            },
-          } : undefined
         )
       ),
       // Inject environment variables in template html.
-      new InterpolateHtmlPlugin(HtmlWebpackPlugin, {
+      isDev && new InterpolateHtmlPlugin(HtmlWebpackPlugin, {
         PUBLIC_URL: paths.referencePath.replace(/[/.]$/, '')
       }),
       // Inject environment variables in JS code.
@@ -332,20 +314,14 @@ const useWebpackConfig = mode => {
       // a plugin that prints an error when you attempt to do this.
       // See https://github.com/facebook/create-react-app/issues/240
       isDev && new CaseSensitivePathsPlugin(),
-      isProd && new MiniCssExtractPlugin({
-        // Options similar to the same options in webpackOptions.output
-        // both options are optional
-        filename:      'static/css/[name].[contenthash:8].css',
-        chunkFilename: 'static/css/[name].[contenthash:8].chunk.css',
-      }),
       // Generate an asset manifest file with the following content:
       // - "files" key: Mapping of all asset filenames to their corresponding
       //   output file so that tools can pick it up without having to parse
       //   `index.html`
       // - "entrypoints" key: Array of files which are included in `index.html`,
       //   can be used to reconstruct the HTML if necessary
-      new ManifestPlugin({
-        fileName:   isDev ? 'manifest.json' : 'asset-manifest.json',
+      isDev && new ManifestPlugin({
+        fileName:   'manifest.json',
         publicPath: env.resolvePathInPackage(
           dir, paths.referencePath
         ),

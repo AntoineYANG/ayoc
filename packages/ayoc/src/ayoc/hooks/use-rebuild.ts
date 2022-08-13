@@ -23,14 +23,11 @@ const useRebuild = (): RebuildFunction => {
         self.__DANGEROUS_COMPONENT_CONTEXT.firstRender = true;
 
         // 通知卸载
-        const clearFuncs = [
-          ...self.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.beforeRender.splice(
-            0, self.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.beforeRender.length
-          ),
-          ...self.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.willUnmount.splice(
+        const clearFuncs = (
+          self.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.willUnmount.splice(
             0, self.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.willUnmount.length
-          ),
-        ];
+          )
+        );
         clearFuncs.forEach(cb => self.fireUpdate(cb));
 
         self.__DANGEROUS_UPDATE();

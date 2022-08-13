@@ -3,6 +3,7 @@
   "template": "public/index.html",
   "src": "src",
   "entry": "index.tsx",
+  "main": "ayoc/index.ts",
   "referencePath": ".",
   "publicPath": "public",
   "output": "build"

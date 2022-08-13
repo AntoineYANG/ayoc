@@ -18,15 +18,15 @@ import diffDeps from './utils/diff-deps';
  * @return {T} 被缓存的值
  */
 const useMemo = <T>(factory: () => T, deps: any[]): T => {
-  const funcRef = useRef(factory());
+  const valueRef = useRef<T | undefined>(undefined);
   const depsRef = useRef(deps);
 
-  if (diffDeps(depsRef.current, deps)) {
-    funcRef.current = factory();
+  if (valueRef.current === undefined || diffDeps(depsRef.current, deps)) {
+    valueRef.current = factory();
     depsRef.current = deps;
   }
   
-  return funcRef.current;
+  return valueRef.current;
 };
 
 
