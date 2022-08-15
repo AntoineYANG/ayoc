@@ -16,7 +16,8 @@
   },
   "homepage": "https://github.com/AntoineYANG/ayoc/blob/main/packages/ayoc/README.md",
   "scripts": {},
-  "dependencies": {
+  "dependencies": {},
+  "devDependencies": {
     "@babel/core": "^7.16.12",
     "@babel/plugin-proposal-private-property-in-object": "^7.16.7",
     "@babel/runtime": "7.12.1",
@@ -28,7 +29,6 @@
     "case-sensitive-paths-webpack-plugin": "^2.4.0",
     "chalk": "^5.0.0",
     "css-loader": "^6.7.1",
-    "eslint": "^7.32.0",
     "eslint-webpack-plugin": "^3.1.1",
     "file-loader": "^6.2.0",
     "fs-extra": "^10.0.1",
@@ -44,19 +44,15 @@
     "resolve": "^1.22.0",
     "resolve-url-loader": "^5.0.0",
     "url-loader": "^4.1.1",
-    "webpack": "^5.70.0",
-    "webpack-manifest-plugin": "^5.0.0"
-  },
-  "devDependencies": {
-    "@types/react": "^18.0.0",
-    "@types/react-dom": "^18.0.0",
     "ajv": "^8.8.2",
     "eslint": "^7.32.0",
     "eslint-plugin-no-memo-displayname": "^0.0.1",
     "eslint-plugin-react": "^7.29.4",
     "style-loader": "^3.3.1",
     "typescript": ">=4",
-    "webpack-dev-server": "^4.7.3"
+    "webpack-dev-server": "^4.7.3",
+    "webpack": "^5.70.0",
+    "webpack-manifest-plugin": "^5.0.0"
   },
   "peerDependencies": {
     "espoir-cli": "^1.3.1"

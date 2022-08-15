@@ -2,7 +2,7 @@
  * @Author: Kanata You 
  * @Date: 2022-01-24 15:46:57 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-13 23:45:46
+ * @Last Modified time: 2022-08-15 18:38:20
  */
 'use strict';
 
@@ -12,13 +12,10 @@ init('prod');
 
 const path = require('path');
 const fs = require('fs-extra');
-const webpack = require('webpack');
+const { execSync } = require('child_process');
 const chalk = import('chalk').then(mod => mod.default);
 const env = require('espoir-cli/env').default;
 
-const copyPublicDir = require('./utils/copy-public-dir');
-const useWebpackConfig = require('./utils/use-webpack-config');
-const printWebpackErrors = require('./utils/print-webpack-errors');
 const {
   analyzeProduct,
   differStats
@@ -29,7 +26,21 @@ const formatTime = require('./utils/format-time');
 const { name: appName } = require('../package.json');
 const paths = require('../configs/path.json');
 
-const outputPath = env.resolvePathInPackage(appName, paths.rootDir, paths.output);
+const {
+  compilerOptions: {
+    outDir,
+    declarationDir,
+  }
+} = require(env.resolvePathInPackage(appName, paths.rootDir, 'tsconfig.json'));
+
+const rootPath = env.resolvePathInPackage(appName, paths.rootDir);
+
+const outputPath = env.resolvePathInPackage(appName, paths.rootDir, outDir);
+const declPath = env.resolvePathInPackage(appName, paths.rootDir, declarationDir);
+
+const tmpDir = env.resolvePathInPackage(appName, paths.rootDir, 'temp');
+const outputPathTmp = path.join(tmpDir, outDir);
+const declPathTmp = path.join(tmpDir, declarationDir);
 
 const prepareOutputDir = async () => {
   const prevStats = analyzeProduct(outputPath);
@@ -37,78 +48,103 @@ const prepareOutputDir = async () => {
   // clear output directory
   fs.emptyDirSync(outputPath);
 
+  if (fs.existsSync(tmpDir)) {
+    fs.rmSync(tmpDir, {
+      recursive: true,
+      force: true,
+    });
+  }
+
   return prevStats;
 };
 
+const pickExportFiles = () => {
+  fs.mkdirSync(tmpDir);
+
+  fs.copySync(
+    path.join(outputPath, 'ayoc'),
+    outputPathTmp, {
+      dereference: true,
+    }
+  );
+
+  fs.copySync(
+    path.join(declPath, 'ayoc'),
+    declPathTmp, {
+      dereference: true,
+    }
+  );
+
+  fs.rmSync(outputPath, {
+    recursive: true,
+    force: true,
+  });
+
+  fs.copySync(
+    outputPathTmp,
+    path.join(outputPath, 'src'), {
+      dereference: true,
+    }
+  );
+
+  fs.copySync(
+    declPathTmp,
+    path.join(outputPath, 'typings'), {
+      dereference: true,
+    }
+  );
+
+  fs.rmSync(tmpDir, {
+    recursive: true,
+    force: true,
+  });
+
+  for (const name of fs.readdirSync(rootPath).filter(name => /^(package\.json|.*\.md)$/.test(name))) {
+    const source = path.join(rootPath, name);
+    const target = path.join(outputPath, name);
+
+    fs.copySync(
+      source,
+      target,
+    );
+  }
+};
+
 const runBuild = async prevStats => {
-  const config = useWebpackConfig('production');
-  
   await chalk.then(async _chalk => {
     console.log(
       _chalk.blue('Start building...')
     );
 
-    const compiler = webpack(config);
+    const startTime = Date.now();
 
-    await new Promise((resolve, reject) => {
-      compiler.run(async (err, result) => {
-        if (err) {
-          console.log(
-            _chalk.redBright(err.message ?? 'Uncaught Error')
-          );
+    execSync('tsc');
 
-          return reject(err);
-        } else if (result.hasErrors()) {
-          await printWebpackErrors(result.compilation.errors);
+    pickExportFiles();
 
-          const _err = new Error(
-            `${
-              result.compilation.errors.length
-            } error${
-              result.compilation.errors.length > 1 ? 's' : ''
-            } occurred when running compilation.`
-          );
+    const endTime = Date.now();
 
-          console.log(
-            _chalk.redBright(_err.message)
-          );
+    console.log(
+      _chalk.green('Completed.')
+    );
 
-          return reject(_err);
-        } else if (result.hasWarnings()) {
-          console.log(
-            _chalk.yellow('Completed with warnings.')
-          );
+    console.log(
+      `${
+        _chalk.yellowBright('Total cost: ')
+      }${
+        _chalk.green(
+          formatTime(endTime - startTime)
+        )
+      }`
+    );
 
-          await printWebpackErrors(result.compilation.warnings, 'warning');
-        } else {
-          console.log(
-            _chalk.green('Completed.')
-          );
-        }
+    const curStats = analyzeProduct(outputPath);
 
-        console.log(
-          `${
-            _chalk.yellowBright('Total cost: ')
-          }${
-            _chalk.green(
-              formatTime(result.endTime - result.startTime)
-            )
-          }`
-        );
+    await differStats(prevStats, curStats);
 
-        const curStats = analyzeProduct(outputPath);
-
-        await differStats(prevStats, curStats);
-
-        console.log(
-          `\nRun \`${
-            _chalk.blueBright(`serve ${outputPath}`)
-          }\` to start server.`
-        );
-
-        resolve();
-      });
-    });
+    console.log(
+      `\nReady to publish.`
+    );
   });
 
   console.log();
