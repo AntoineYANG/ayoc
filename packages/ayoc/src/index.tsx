@@ -13,7 +13,11 @@ import {
   useLifetimeFlag,
   LifetimeFlag,
   useLifetimeEffect,
+  Suspense,
+  lazy,
 } from 'ayoc';
+
+const Box = lazy(async () => (await import('./components/box')).default);
 
 
 const container = document.getElementById('root');
@@ -91,6 +95,18 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
     console.log('父组件更新（layout effect）', resetBtnRef);
   });
 
+  const promiseData = useMemo(async () => {
+    const num = await new Promise<number>(resolve => {
+      setTimeout(() => {
+        resolve(Date.now() % 10000);
+      }, 1000);
+    });
+
+    return (
+      <p>{num}</p>
+    );
+  }, []);
+
   return (
     <div>
       <p>
@@ -125,6 +141,10 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
         {`<useMemo> memoized (a + b) = ${sum}`}
       </p>
       <hr />
+      <Suspense fallback={<p>loading</p>}>
+        {promiseData}
+      </Suspense>
+      <hr />
       <button
         onClick={reset}
         ref={e => {
@@ -133,6 +153,9 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
       >
         reset
       </button>
+      <Suspense>
+        <Box d="Hello ayoc" />
+      </Suspense>
     </div>
   );
 };
@@ -153,14 +176,14 @@ const Wrapper: Component = () => {
       >
         toggle
       </button>
-      <p>
-        {`render <App /> : ${show}`}
-      </p>
       {
         show && (
           <App d={3456789} parentLifetime={lifetimeFlag} />
         )
       }
+      <p>
+        {`render <App /> : ${show}`}
+      </p>
     </div>
   );
 };

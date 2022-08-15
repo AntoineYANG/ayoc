@@ -2,16 +2,16 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 19:10:29 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-13 23:22:59
+ * @Last Modified time: 2022-08-15 21:04:42
  */
 
-import { cacheNodes, generateTree, VirtualDOMNode } from './dom';
+import { cacheNodes, generateTree, mountElements, VirtualDOMNode } from './dom';
 import type { RenderElement } from './jsx';
 
 
 type Component<
   P extends Record<string | number | symbol, any> = {}
-> = (props: Readonly<P>) => RenderElement;
+> = (props: Readonly<P & { children?: any }>) => RenderElement;
 
 /** 子组件缓存映射（通过源码中的位置与 key 匹配） */
 export type ComponentMemoSet = Map<
@@ -71,6 +71,7 @@ export interface ComponentContext {
 
 type RenderFunction<P extends Record<string | number | symbol, any> = {}> = (
   parent: Element,
+  offset: number,
   props: Readonly<P>,
 ) => void;
 
@@ -141,6 +142,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   }>();
 
   let $$slot: Element;
+  let $$offset: number;
   
   const $$render = (): RenderElement => {
     if (context.__DANGEROUS_COMPONENT_CONTEXT.firstRender) {
@@ -170,7 +172,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   };
 
   /** 上次渲染结果 */
-  // let prevRenderDom: VirtualDOMNode[] = [];
+  let prevRenderDom: VirtualDOMNode[] = [];
   const renderCache: Map<string, VirtualDOMNode> = new Map<string, VirtualDOMNode>();
   const childrenRenderCache: typeof parentRenderCache = new Map<string, {
     type: Component<any>;
@@ -182,9 +184,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   /** 完成 DOM 更新 */
   const $$apply = (element: RenderElement): void => {
     // console.log('render', $$slot, element);
-
-    // prevRenderDom.forEach(e => e.ref.remove());
-
+    
     // 卸载生命周期为 dynamic 的组件
     dynamicComponentCache.forEach(which => {
       which.emitDestroy();
@@ -224,17 +224,15 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
 
     // 更新视图
 
-    // console.log('dom', dom);
-
     renderCache.clear();
 
-    dom.forEach(e => {
-      $$slot.appendChild(e.ref);
-    });
+    prevRenderDom.forEach(e => e.ref.remove());
+
+    mountElements($$slot, $$offset, dom.map(e => e.ref));
 
     cacheNodes(dom, renderCache);
 
-    // prevRenderDom = dom;
+    prevRenderDom = dom;
 
     // 同步副作用
     const layoutEffects = context.__DANGEROUS_COMPONENT_CONTEXT.effectQueue.whenRender.splice(
@@ -261,8 +259,9 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   };
 
   /** 由上层组件传递 props 触发更新 */
-  const sendProps = (parent: Element, props: Readonly<P>): void => {
+  const sendProps = (parent: Element, offset: number, props: Readonly<P>): void => {
     $$slot = parent;
+    $$offset = offset;
     context.__DANGEROUS_COMPONENT_CONTEXT.props = props;
     
     // console.log(`send props`, props);

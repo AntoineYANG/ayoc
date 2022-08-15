@@ -2,10 +2,10 @@
  * @Author: Kyusho 
  * @Date: 2022-08-04 20:40:10 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-11 23:58:21
+ * @Last Modified time: 2022-08-16 00:45:42
  */
 
-import { ComponentContext, ComponentMemoSet, useComponentNode } from './component';
+import { ComponentContext, ComponentMemoSet, useComponentNode, __DANGEROUS_CUR_COMPONENT_REF } from './component';
 import { Fragment, JSXElement, RenderElement, TextElement } from './jsx';
 
 
@@ -19,6 +19,7 @@ export type VirtualDOMNode = {
 };
 
 const resolveVirtualDOM = (
+  offset: number,
   context: ComponentContext,
   parent: Element,
   jsx: JSXElement,
@@ -33,6 +34,10 @@ const resolveVirtualDOM = (
   const res: VirtualDOMNode[] = [];
 
   if (typeof jsx.type === 'function') {
+    if (jsx.type.name === 'lazyComponent' && /^async props => \{/.test(`${jsx.type}`)) {
+      return res;
+    }
+
     // 组件
     const { lifetime = 'inherit' } = jsx.props;
 
@@ -62,7 +67,7 @@ const resolveVirtualDOM = (
       where ?? null,
     );
     
-    render(parent, jsx.props);
+    render(parent, offset, jsx.props);
   } else if (typeof jsx.type === 'string') {
     // HTML 元素
 
@@ -76,7 +81,15 @@ const resolveVirtualDOM = (
       props,
       style,
       children: [],
-      ref: useCached ? cached!.ref : document.createElement(tagName),
+      ref: useCached ? (() => {
+        const which = cached!.ref;
+
+        for (const child of which.childNodes) {
+          child.remove();
+        }
+
+        return which;
+      })() : document.createElement(tagName),
       where: where ?? null,
     };
 
@@ -89,6 +102,8 @@ const resolveVirtualDOM = (
     res.push(element);
 
     const dom = element.ref;
+
+    offsetMap.set(dom, offset);
     
     if (ref) {
       (ref as (element: Element) => void)(dom);
@@ -134,8 +149,9 @@ const resolveVirtualDOM = (
 
     element.ref = dom;
 
-    children.forEach(child => {
+    children.forEach((child, i) => {
       const node = resolveVirtualDOM(
+        i,
         context,
         dom,
         child,
@@ -169,6 +185,8 @@ const resolveVirtualDOM = (
       element.ref.innerHTML = jsx.props.nodeValue ?? '';
     }
 
+    offsetMap.set(element.ref, offset);
+
     res.push(element);
   } else if (jsx.type === Fragment) {
     // Fragment
@@ -176,6 +194,7 @@ const resolveVirtualDOM = (
     jsx.props.children.forEach(child => {
       res.push(
         ...resolveVirtualDOM(
+          offset,
           context,
           parent,
           child,
@@ -205,6 +224,7 @@ export const generateTree = (
   if (next) {
     res.push(
       ...resolveVirtualDOM(
+        0,
         context,
         parent,
         next,
@@ -228,5 +248,37 @@ export const cacheNodes = (nodes: VirtualDOMNode[], cache: Map<string, VirtualDO
         cacheNodes(node.children, cache);
       }
     }
+  }
+};
+
+const offsetMap = new WeakMap<ChildNode, number>();
+
+export const mountElements = (parent: Element, offset: number, elements: Element[]): void => {
+  if (elements.length === 0) {
+    return;
+  }
+  
+  let nextNode: ChildNode | null = null;
+
+  for (const child of [...parent.childNodes].reverse()) {
+    const index = offsetMap.get(child) ?? 0;
+
+    if (index > offset) {
+      nextNode = child;
+    } else {
+      break;
+    }
+  }
+
+  if (!nextNode) {
+    elements.forEach(ele => {
+      parent.appendChild(ele);
+      offsetMap.set(ele, offset);
+    });
+  } else {
+    elements.forEach(ele => {
+      parent.insertBefore(ele, nextNode!);
+      offsetMap.set(ele, offset);
+    });
   }
 };

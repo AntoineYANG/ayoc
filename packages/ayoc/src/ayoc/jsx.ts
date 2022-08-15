@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 19:08:24 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-11 23:54:08
+ * @Last Modified time: 2022-08-15 20:20:07
  */
 
 import type Component from './component';
@@ -11,8 +11,8 @@ import type { LifetimeAnnotation } from './lifetime';
 
 const flag: unique symbol = Symbol('JSXElement');
 
-export interface JSXElement {
-  type: string | Component | symbol;
+export interface JSXElement<P extends Record<string | number | symbol, any> = any> {
+  type: string | Component<P> | symbol;
   props: {
     children: JSXElement[];
     nodeValue?: any;
@@ -70,6 +70,17 @@ export const createTextNode = (data: unknown): JSXElement => {
   };
 };
 
+export const createFragment = (children: any): JSXElement => {
+  return {
+    type: Fragment,
+    props: {
+      children,
+    },
+    flag,
+    key: null,
+  };
+};
+
 const __DANGEROUSLY_GET_CUR_JSX_POSITION = (): string => {
   const position = new Error().stack!.split(/\n\s*/)[3]!.replace(/^at /, '');
   
@@ -79,18 +90,19 @@ const __DANGEROUSLY_GET_CUR_JSX_POSITION = (): string => {
 /**
  * Create element.
  */
-const jsxProd = (
-  type: string | Component,
+const jsxProd = <P extends Record<string | number | symbol, any>>(
+  type: string | Component<P>,
   props: Omit<JSXElement['props'], 'children'> & {
     children?: any;
   },
 ): JSXElement => {
   const children = ([] as any[]).concat(props.children);
+  const { lifetime: _, ..._props } = props;
 
   return {
     type,
     props: {
-      ...props,
+      ..._props,
       children: children.map(child => (
         typeof child === 'object' ? child : createTextNode(child)
       )) ?? [],
@@ -104,18 +116,19 @@ const jsxProd = (
 /**
  * Create element.
  */
-const jsxDev = (
-  type: string | Component,
+const jsxDev = <P extends Record<string | number | symbol, any>>(
+  type: string | Component<P>,
   props: Omit<JSXElement['props'], 'children'> & {
     children?: any;
   },
 ): JSXElement => {
   const children = ([] as any[]).concat(props.children);
+  const { lifetime: _, ..._props } = props;
 
   return {
     type,
     props: {
-      ...props,
+      ..._props,
       children: children.map(child => (
         typeof child === 'object' ? child
           : typeof child === 'string' || typeof child === 'number' ? createTextNode(child)
@@ -126,91 +139,6 @@ const jsxDev = (
     key: props['key'] ?? null,
     where: __DANGEROUSLY_GET_CUR_JSX_POSITION(),
   };
-};
-
-export type KeyMap = Map<string | number, Element>;
-
-export const applyJSX = (
-  parent: Element,
-  jsx: JSXElement | JSXElement[],
-  keyMap: KeyMap,
-): void => {
-  const data = ([] as JSXElement[]).concat(jsx);
-
-  for (const child of parent.childNodes) {
-    child.remove();
-  }
-
-  let cursor = 0;
-  
-  const nextChildren = data.reduce<[ChildNode, JSXElement[]][]>((list, jsx) => {
-    if (jsx.type === TextElement && jsx.props.nodeValue) {
-      // 文字节点
-      return [...list, [new Text(jsx.props.nodeValue), jsx.props.children]];
-    }
-    
-    if (typeof jsx.type !== 'string') {
-      return list;
-    }
-
-    const which: Element | null = jsx.key !== null ? (keyMap.get(jsx.key) ?? null) : parent.children.item(cursor++);
-    const { nodeValue, children, ...p } = jsx.props;
-    const { style = {}, ...props } = p;
-
-    if (which) {
-      // 更新这个节点
-      for (const key in props) {
-        if (Object.prototype.hasOwnProperty.call(props, key)) {
-          const prevVal = which.getAttribute(key);
-          const nextVal = props[key];
-          
-          if (prevVal !== nextVal) {
-            which.setAttribute(key, nextVal);
-          }
-        }
-      }
-
-      for (const key in style) {
-        if (Object.prototype.hasOwnProperty.call(style, key) && key in (which as HTMLElement).style) {
-          const nextVal = style[key];
-          (which as HTMLElement).style[key as Exclude<keyof CSSStyleDeclaration, 'length' | 'parentRule'>] = nextVal;
-        }
-      }
-
-      if (jsx.key !== null) {
-        keyMap.set(jsx.key, which);
-      }
-
-      return [...list, [which, jsx.props.children]];
-    }
-
-    // 新建节点
-    const ele: HTMLElement = document.createElement(jsx.type as string);
-
-    for (const key in props) {
-      if (Object.prototype.hasOwnProperty.call(props, key)) {
-        const nextVal = props[key];
-        ele.setAttribute(key, nextVal);
-      }
-    }
-
-    for (const key in style) {
-      if (Object.prototype.hasOwnProperty.call(style, key) && key in ele.style) {
-        const nextVal = style[key];
-        ele.style[key as Exclude<keyof CSSStyleDeclaration, 'length' | 'parentRule'>] = nextVal;
-      }
-    }
-
-    return [...list, [ele, jsx.props.children]];
-  }, []);
-
-  nextChildren.forEach(([node, children]) => {
-    parent.appendChild(node);
-
-    if (children.length > 0) {
-      applyJSX(node as Element, children, keyMap);
-    }
-  });
 };
 
 

@@ -104,7 +104,7 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       null,
     );
 
-    root(rootElement, {});
+    root(rootElement, 0, {});
 
     context.__DANGEROUS_COMPONENT_CONTEXT.visible = true;
   };

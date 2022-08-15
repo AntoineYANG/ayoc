@@ -1,6 +1,6 @@
 # ayoc v0.x
 
-## 0.0.1 (2022/8/10 - 2022/8/15)
+## 0.0.1 (2022/8/10 - 2022/8/16)
 
 _\<version description\>_
 
@@ -33,5 +33,10 @@ _\<version description\>_
 ### scripts
 
 + 🧰 **Dev build script.** - kyusho(antoineyang99@gmail.com) 2022/8/15, on _main_
+
+
+### suspense
+
++ 🌱 **Suspense & lazy.** - kyusho(antoineyang99@gmail.com) 2022/8/16, on _main_
 
 
