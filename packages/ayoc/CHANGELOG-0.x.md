@@ -1,6 +1,6 @@
 # ayoc v0.x
 
-## 0.0.1 (2022/8/10 - 2022/8/16)
+## 0.0.1 (2022/8/10 - 2022/8/21)
 
 _\<version description\>_
 
@@ -38,5 +38,10 @@ _\<version description\>_
 ### suspense
 
 + 🌱 **Suspense & lazy.** - kyusho(antoineyang99@gmail.com) 2022/8/16, on _main_
+
+
+### error-boundary
+
++ 🌱 **+ useErrorHandler() hook.** - kyusho(antoineyang99@gmail.com) 2022/8/21, on _main_
 
 

@@ -213,6 +213,7 @@ const resolveVirtualDOM = (
 export const generateTree = (
   context: ComponentContext,
   parent: Element,
+  offset: number,
   next: RenderElement,
   cache: Readonly<Map<string, VirtualDOMNode>>,
   parentRenderCache: ComponentMemoSet,
@@ -224,7 +225,7 @@ export const generateTree = (
   if (next) {
     res.push(
       ...resolveVirtualDOM(
-        0,
+        offset,
         context,
         parent,
         next,

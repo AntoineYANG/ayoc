@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 19:10:29 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-15 21:04:42
+ * @Last Modified time: 2022-08-21 01:34:46
  */
 
 import { cacheNodes, generateTree, mountElements, VirtualDOMNode } from './dom';
@@ -38,6 +38,7 @@ export type Hook<C> = {
 export interface ComponentContext {
   root: Readonly<ComponentContext>;
   fireUpdate: (cb: () => void) => void;
+  raiseError: (error: Error, from: string, stack: string[]) => void;
   parent: Readonly<ComponentContext> | null;
   /** 子组件集合 */
   renderCache: ComponentMemoSet;
@@ -65,6 +66,10 @@ export interface ComponentContext {
       /** 实例销毁前异步执行 */
       willDestroy: (() => void)[];
     };
+    errorHandlers: {
+      type: ErrorConstructor;
+      handler: (error: Error) => void;
+    }[];
   };
   __DANGEROUS_UPDATE: () => void;
 }
@@ -81,6 +86,50 @@ export const __DANGEROUS_CUR_COMPONENT_REF: {
   current: null,
 };
 
+export class AyocRenderError extends Error {
+
+  readonly from: string;
+  readonly __stack: string[];
+
+  constructor(from: string, stack: string[], options?: ErrorOptions) {
+    const msg = `<${from} /> throws an error when rendering.`;
+    const stackInfo = stack.map(
+      info => `    from ${info}`.replace('<AyocRoot />', 'AyocRenderRoot')
+    ).join('\n');
+
+    super(msg, options);
+
+    this.from = from;
+    this.__stack = stack;
+
+    this.name = 'AyocRenderError';
+    this.stack = `${this.name} {${
+      ` ${options?.cause?.name ?? ''}: ${
+        options?.cause?.message ?? ''
+      } `.replace(' : ', '')
+    }}\n${
+      options?.cause?.stack?.split('\n').reduce<{
+        list: string[];
+        closed: boolean;
+      }>((ctx, line, i) => {
+        if (line.match(/^    at \$\$render /)) {
+          ctx.closed = true;
+        } else if (i && !ctx.closed) {
+          ctx.list.push(line);
+        }
+        
+        return ctx;
+      }, {
+        list: [],
+        closed: false,
+      }).list.join('\n') ?? ''
+    }\n${
+      stackInfo
+    }`;
+  }
+
+}
+
 export const useComponentNode = <P extends Record<string | number | symbol, any>>(
   root: Readonly<ComponentContext>,
   ownerRenderCache: ComponentMemoSet,
@@ -88,9 +137,9 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   parent: Readonly<ComponentContext>,
   component: Component<P>,
   key: string | number | null,
-  where: string | null,
+  where: string,
 ): RenderFunction<P> => {
-  const id = where === null ? null : `<${component.name}/> at ${where};${
+  const id = `<${component.name}/> at ${where};${
     key === null ? '' : `key ${typeof key === 'number' ? '=' : 'is'} ${key}`
   }`;
 
@@ -109,6 +158,23 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   const context: ComponentContext = {
     root,
     fireUpdate: root.fireUpdate,
+    raiseError: (error, from, stack) => {
+      // 自身处理异常
+      for (const { type, handler } of context.__DANGEROUS_COMPONENT_CONTEXT.errorHandlers) {
+        if (error instanceof type) {
+          handler(error);
+
+          return;
+        }
+      }
+
+      // 未能处理：向上抛出
+      context.parent?.raiseError(
+        error,
+        from,
+        [...stack, `<${component.name} /> at ${where}`],
+      );
+    },
     parent,
     renderCache: new Map<string, {
       type: Component<any>;
@@ -130,6 +196,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
         willUnmount: [],
         willDestroy: [],
       },
+      errorHandlers: [],
     },
     __DANGEROUS_UPDATE: () => {},
   };
@@ -158,15 +225,38 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
           willUnmount: [],
           willDestroy: [],
         },
+        errorHandlers: [],
       };
     }
 
     context.__DANGEROUS_COMPONENT_CONTEXT.hookIdx = 0;
     __DANGEROUS_CUR_COMPONENT_REF.current = context;
-    const jsx = component(context.__DANGEROUS_COMPONENT_CONTEXT.props);
-    __DANGEROUS_CUR_COMPONENT_REF.current = null;
-    context.__DANGEROUS_COMPONENT_CONTEXT.firstRender = false;
-    // console.log(context.__DANGEROUS_COMPONENT_CONTEXT, context.__hooks);
+
+    let jsx: RenderElement = null;
+
+    try {
+      jsx = component(context.__DANGEROUS_COMPONENT_CONTEXT.props);
+    } catch (error) {
+      // 自身处理异常
+      for (const { type, handler } of context.__DANGEROUS_COMPONENT_CONTEXT.errorHandlers) {
+        if (error instanceof type) {
+          handler(error);
+
+          return null;
+        }
+      }
+
+      // 未能处理：向上抛出
+      context.parent?.raiseError(
+        error,
+        component.name,
+        [`<${component.name} /> at ${where}`],
+      );
+    } finally {
+      __DANGEROUS_CUR_COMPONENT_REF.current = null;
+      context.__DANGEROUS_COMPONENT_CONTEXT.firstRender = false;
+      // console.log(context.__DANGEROUS_COMPONENT_CONTEXT, context.__hooks);
+    }
 
     return jsx;
   };
@@ -202,6 +292,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
     const dom = generateTree(
       context,
       $$slot,
+      $$offset,
       element,
       renderCache,
       childrenRenderCache,
@@ -326,6 +417,7 @@ export const useComponentNode = <P extends Record<string | number | symbol, any>
   /** 标记为销毁 */
   const emitDestroy = (): void => {
     if (context.__DANGEROUS_COMPONENT_CONTEXT.visible) {
+      $$apply(null);
       emitUnmount();
     }
 

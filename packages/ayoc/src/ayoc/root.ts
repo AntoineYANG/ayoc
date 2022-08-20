@@ -2,10 +2,11 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 16:34:01 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-11 22:56:51
+ * @Last Modified time: 2022-08-21 01:33:01
  */
 
 import Component, {
+  AyocRenderError,
   ComponentContext,
   useComponentNode,
 } from './component';
@@ -62,6 +63,26 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
     const context: ComponentContext = {
       root: undefined as unknown as ComponentContext,
       fireUpdate,
+      raiseError: (error, from, stack) => {
+        // 没有拦截：应用崩溃
+        console.error(error);
+
+        // unmount
+        context.__DANGEROUS_COMPONENT_CONTEXT.visible = false;
+        requestAnimationFrame(() => {
+          context.renderCache.forEach(which => {
+            which.emitDestroy();
+          });
+        });
+
+        throw new AyocRenderError(
+          from,
+          stack,
+          {
+            cause: error,
+          }
+        );
+      },
       parent: null,
       renderCache: new Map<string, {
         type: Component<any>;
@@ -83,6 +104,7 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
           willUnmount: [],
           willDestroy: [],
         },
+        errorHandlers: [],
       },
       __DANGEROUS_UPDATE: () => {},
     };
@@ -101,8 +123,10 @@ export const useRenderRoot = (rootElement: HTMLElement): RootRenderFunction => {
       context,
       function AyocRoot () { return element },
       null,
-      null,
+      new Error().stack?.split('\n')[2]?.replace(/^    at /, '') ?? '(root)',
     );
+
+    console.log('->', new Error().stack?.split('\n')[2]);
 
     root(rootElement, 0, {});
 

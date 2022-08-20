@@ -2,7 +2,7 @@
  * @Author: Kyusho 
  * @Date: 2022-08-03 16:31:44 
  * @Last Modified by: Kyusho
- * @Last Modified time: 2022-08-15 19:30:33
+ * @Last Modified time: 2022-08-21 00:05:11
  */
 
 // core
@@ -15,6 +15,7 @@ import Suspense, { lazy } from './built-in/suspense';
 // hooks
 import useCallback from './hooks/use-callback';
 import useEffect from './hooks/use-effect';
+import useErrorHandler from './hooks/use-error-handler';
 import useId from './hooks/use-id';
 import useLayoutEffect from './hooks/use-layout-effect';
 import useLifetimeEffect from './hooks/use-lifetime-effect';
@@ -43,6 +44,7 @@ export {
   // hooks
   useCallback,
   useEffect,
+  useErrorHandler,
   useId,
   useLayoutEffect,
   useLifetimeEffect,

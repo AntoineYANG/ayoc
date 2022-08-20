@@ -15,6 +15,7 @@ import {
   useLifetimeEffect,
   Suspense,
   lazy,
+  useErrorHandler,
 } from 'ayoc';
 
 const Box = lazy(async () => (await import('./components/box')).default);
@@ -42,6 +43,17 @@ const Empty: Component<{ name: string }> = ({ name }) => {
   }, [name]);
 
   return null;
+};
+
+const MayFault: Component = () => {
+  useErrorHandler(Error, e => {
+    console.warn(e);
+  });
+  throw new TypeError('oh no!');
+
+  return (
+    <p>...</p>
+  );
 };
 
 const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parentLifetime }) => {
@@ -144,6 +156,8 @@ const App: Component<{ d: number, parentLifetime: LifetimeFlag }> = ({ d, parent
       <Suspense fallback={<p>loading</p>}>
         {promiseData}
       </Suspense>
+      <hr />
+      <MayFault />
       <hr />
       <button
         onClick={reset}

@@ -53,7 +53,36 @@ const Suspense: SuspenseType = ({
   onRejectRef.current = onReject;
   const hangingRef = useRef(children[0]);
 
-  const isSame = children[0] === hangingRef.current;
+  const isSame = children[0] === hangingRef.current || (
+    isJSXElement(children[0]) && isJSXElement(hangingRef.current)
+      && (children[0] as unknown as JSXElement).type === (hangingRef.current as unknown as JSXElement).type
+      && (() => {
+        const next = children[0] as unknown as JSXElement;
+        const prev = hangingRef.current as unknown as JSXElement;
+        
+        if (Object.keys(next.props).length === Object.keys(prev.props).length) {
+          for (const key in next.props) {
+            if (Object.prototype.hasOwnProperty.call(next.props, key)) {
+              const attrNext = next.props[key];
+              
+              if (Object.prototype.hasOwnProperty.call(prev.props, key)) {
+                const attrPrev = prev.props[key];
+
+                if (attrNext !== attrPrev) {
+                  return false;
+                }
+              } else {
+                return false;
+              }
+            }
+          }
+
+          return true;
+        }
+
+        return false;
+      })()
+  );
 
   if (!isSame) {
     hangingRef.current = children[0];
